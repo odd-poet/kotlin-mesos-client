@@ -4,6 +4,9 @@ buildscript {
         junit_version = '4.12'
         slf4j_version = '1.7.25'
         logback_version = '1.2.3'
+        httpcomponents_version = '4.5.6'
+        jackson_version = '2.9.6'
+
 
         kotlin_expect_version = '1.2.1'
         bintray_plugin_version = '1.8.4'
@@ -40,7 +43,10 @@ dependencies {
     compile(
             "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version",
             "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version",
-            "org.slf4j:slf4j-api:$slf4j_version"
+            "org.slf4j:slf4j-api:$slf4j_version",
+            "org.apache.httpcomponents:httpclient:$httpcomponents_version", 
+            "com.fasterxml.jackson.core:jackson-databind:$jackson_version",
+            "com.fasterxml.jackson.module:jackson-module-kotlin:$jackson_version"
     )
 
     testCompile(
