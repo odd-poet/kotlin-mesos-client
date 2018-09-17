@@ -1,11 +1,15 @@
 package net.oddpoet.mesos.http
 
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.PropertyNamingStrategy
 import com.fasterxml.jackson.databind.annotation.JsonNaming
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import net.oddpoet.mesos.Scheduler
 import net.oddpoet.mesos.SchedulerDriver
+import net.oddpoet.mesos.http.dto.Event
+import net.oddpoet.mesos.http.dto.FrameworkInfo
 import org.apache.http.client.methods.HttpUriRequest
 import org.apache.http.client.methods.RequestBuilder.post
 import org.apache.http.entity.ContentType
@@ -24,8 +28,15 @@ class HttpBasedSchedulerDriver : SchedulerDriver {
     private val http = HttpClients.custom()
             .build()
 
+    private val mapper = ObjectMapper().apply {
+        setPropertyNamingStrategy(PropertyNamingStrategy.SNAKE_CASE)
+        setSerializationInclusion(JsonInclude.Include.NON_NULL)
+        registerModules(KotlinModule())
+    }
+
     override fun start(scheduler: Scheduler) {
         val subscribe = Mesos.SubscribeMessage.of("root", "example")
+        log.debug("subscirbe: {}", mapper.writeValueAsString(subscribe))
         http.execute(
                 post("http://127.0.0.1:5050/api/v1/scheduler")
                         .setEntity(JsonEntity(subscribe))
@@ -41,13 +52,14 @@ class HttpBasedSchedulerDriver : SchedulerDriver {
 
             RecordIO(response.entity.content).forEach { data ->
                 log.debug("event: {}", String(data))
+                val event = mapper.readValue(String(data), Event::class.java)
+                log.debug("parsed: {}", event)
             }
         }
     }
 
 
     class JsonEntity<T : Any>(data: T) : StringEntity(toJson(data), ContentType.APPLICATION_JSON) {
-
         companion object {
             private val mapper = ObjectMapper().apply {
                 registerModule(KotlinModule())
@@ -76,11 +88,6 @@ interface Mesos {
     interface Typed {
         val type: String
     }
-
-    data class FrameworkInfo(
-            val user: String,
-            val name: String)
-
 
     data class SubscribeMessage(
             val subscribe: Subscribe) : Typed {

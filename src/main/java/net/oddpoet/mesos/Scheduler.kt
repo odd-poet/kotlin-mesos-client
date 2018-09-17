@@ -1,8 +1,8 @@
 package net.oddpoet.mesos
 
-import net.oddpoet.mesos.data.MasterInfo
-import net.oddpoet.mesos.data.Offer
-import net.oddpoet.mesos.data.TaskStatus
+import net.oddpoet.mesos.http.dto.MasterInfo
+import net.oddpoet.mesos.http.dto.Offer
+import net.oddpoet.mesos.http.dto.TaskStatus
 
 /**
  *
