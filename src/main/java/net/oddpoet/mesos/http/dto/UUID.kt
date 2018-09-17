@@ -1,6 +1,10 @@
 package net.oddpoet.mesos.http.dto
 
-import kotlin.reflect.jvm.internal.impl.protobuf.ByteString
+import java.util.*
 
-data class UUID(val value: ByteString)
+data class UUID(val value: String) {
+
+    val asBytes: ByteArray?
+        get() = Base64.getDecoder().decode(value)
+}
 

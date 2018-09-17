@@ -1,6 +1,6 @@
 package net.oddpoet.mesos.http.dto
 
-import kotlin.reflect.jvm.internal.impl.protobuf.ByteString
+import java.util.*
 
 /**
  * Describes the current status of a task.
@@ -11,7 +11,7 @@ data class TaskStatus(
         val message: String?,
         val source: Source?,
         val reason: Reason?,
-        val data: ByteString?,
+        val data: String?,
         val agentId: AgentID?,
         val executorId: ExecutorID?,
         val timestamp: Double?,
@@ -26,7 +26,7 @@ data class TaskStatus(
          * driver and executor driver, but executors will need to set this
          * to a valid RFC-4122 UUID if using the HTTP API.
          */
-        val uuid: ByteString?,
+        val uuid: String?,
         /**
          * Describes whether the task has been determined to be healthy (true) or
          * unhealthy (false) according to the `health_check` field in `TaskInfo`.
@@ -123,4 +123,10 @@ data class TaskStatus(
         REASON_TASK_UNAUTHORIZED,
         REASON_TASK_UNKNOWN,
     }
+
+    val dataAsBytes: ByteArray?
+        get() = data?.let { Base64.getDecoder().decode(it) }
+
+    val uuidAsBytes: ByteArray?
+        get() = data?.let { Base64.getDecoder().decode(it) }
 }

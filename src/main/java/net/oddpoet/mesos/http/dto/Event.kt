@@ -1,6 +1,6 @@
 package net.oddpoet.mesos.http.dto
 
-import kotlin.reflect.jvm.internal.impl.protobuf.ByteString
+import java.util.*
 
 /**
  * Scheduler event API.
@@ -149,7 +149,11 @@ data class Event(
     data class Message(
             val agentId: AgentID,
             val executorId: ExecutorID,
-            val data: ByteString)
+            val data: String) {
+
+        val dataAsBytes: ByteArray
+            get() = Base64.getDecoder().decode(data)
+    }
 
     /**
      * Received when an agent is removed from the cluster (e.g., failed

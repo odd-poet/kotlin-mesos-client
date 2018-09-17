@@ -1,6 +1,6 @@
 package net.oddpoet.mesos.http.dto
 
-import kotlin.reflect.jvm.internal.impl.protobuf.ByteString
+import java.util.*
 
 /**
  * Describes information about an executor.
@@ -44,7 +44,7 @@ data class ExecutorInfo(
         /**
          * This field can be used to pass arbitrary bytes to an executor.
          */
-        val data: ByteString?,
+        val data: String?,
 
         /**
          * Service discovery information for the executor. It is not
@@ -95,4 +95,7 @@ data class ExecutorInfo(
          */
         CUSTOM
     }
+
+    val dataAsBytes: ByteArray?
+        get() = data?.let { Base64.getDecoder().decode(it) }
 }

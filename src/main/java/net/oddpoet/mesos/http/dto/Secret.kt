@@ -1,6 +1,6 @@
 package net.oddpoet.mesos.http.dto
 
-import kotlin.reflect.jvm.internal.impl.protobuf.ByteString
+import java.util.*
 
 /**
  * Secret used to pass privileged information. It is designed to provide
@@ -43,5 +43,8 @@ data class Secret(
     /**
      * Used to pass the value of a secret.
      */
-    data class Value(val data: ByteString)
+    data class Value(val data: String) {
+        val dataAsBytes: ByteArray
+            get() = Base64.getDecoder().decode(data)
+    }
 }

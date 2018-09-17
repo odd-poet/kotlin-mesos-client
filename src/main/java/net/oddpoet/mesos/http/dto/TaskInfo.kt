@@ -1,6 +1,6 @@
 package net.oddpoet.mesos.http.dto
 
-import kotlin.reflect.jvm.internal.impl.protobuf.ByteString
+import java.util.*
 
 /**
  * Describes a task. Passed from the scheduler all the way to an
@@ -45,7 +45,7 @@ data class TaskInfo(
          * the kill policy.
          */
         val killPolicy: KillPolicy?,
-        val data: ByteString?,
+        val data: String?,
         /**
          * Labels are free-form key value pairs which are exposed through
          * master and agent endpoints. Labels will not be interpreted or
@@ -70,4 +70,9 @@ data class TaskInfo(
          * It is the executor's responsibility to implement this, so it might not be
          * supported by all custom executors.
          */
-        val maxCompletionTime: DurationInfo?)
+        val maxCompletionTime: DurationInfo?) {
+
+    val dataAsBytes: ByteArray?
+        get() = data?.let { Base64.getDecoder().decode(it) }
+
+}
