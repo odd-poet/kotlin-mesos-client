@@ -697,7 +697,145 @@ MESSAGE Event (JSON)
 ### FAILURE
 
 cluster에서 agent가 제거될 때(e.g. health check 실패) 혹은 executor가 종료되었을 때 master는 `FAILURE` 메시지를 보낸다.
-이 이벤트는   
+이 이벤트는 어떤 agent나 executor에 속한 active task의 종료에 대한 `UPDATE`이벤트와 agent의 offer의 `RESCIND` 이벤트와 함께 발생한다. 
+하지만 `FAILURE`, `UPDATE`, `RESCIND` 이벤트의 순서는 보장되지 않는다. 
+
+```
+FAILURE Event (JSON)
+
+<event-length>
+{
+  "type"    : "FAILURE",
+  "failure" : {
+    "agent_id"      : { "value" : "12214-23523-S235235"},
+    "executor_id"   : { "value" : "12214-23523-my-executor"},
+    "status"        : 1
+  }
+}
+```
+
+### ERROR 
+
+비동기 에러 이벤트가 생성되면(e.g. framework이 구독하는 role에 authorize되지 않다던가) master는 `ERROR` 이벤트를 보낸다. 
+framework은 이 이벤트를 받으면 중지하길 권장한다. 필요하면 다시 subscribe하라. 
+
+```
+ERROR Event (JSON)
+
+<event-length>
+{
+  "type"    : "ERROR",
+  "message" : "Framework is not authorized"
+}
+```
+
+### HEARTBEAT
+
+master는 connection 이 살아있음을 알리기 위해 주기적으로 `HEARTBEAT` 이벤트를 보낸다. 
+또한 이 이벤트는 connection이 close되지 않고 유지될 수 있게 하는 역할도 한다. 다음 섹션에서 scheduler가 이 이벤트를 어떻게 다룰지 설명하겠다.   
+
+```
+HEARTBEAT Event (JSON)
+
+<event-length>
+{
+  "type"    : "HEARTBEAT"
+}
+```
+
+## Disconnections
+
+master는 `/scheduler`에 대한 persistent subscription connection이 깨지면 scheduler와 연결이 끊겼다고 판단한다. 
+scheduler의 restart, scheduler failover, network error 등의 이유로 connection은 끊길 수 있다. master 는 `/scheduler`에 대한 
+non-subscription connection은 유지 않는다. 그런 connection은 persistent connection이 아니기 때문이다. 
+
+master가 subscription connection이 끊긴걸 인지하면, scheduler를 "disconnected"로 마킹하고 
+failover timeout을 시작한다(failover timeout은 FrameworkInfo의 속성). 그리고 queue에 남아있는 event들을 버린다. 
+추가적으로 `/scheduler`로 들어오는 non-subscription HTTP request들을 모두 reject하고 "403 Forbidden"을 응답한다(scheduler가 다시
+`/scheduler`로 subscribe를 할 때까지). failover timeout 내에 scheduler가 다시 구독을 하지 않으면, scheduler는 영원히 종료된 것으로 간주되고
+모든 executor들은 shutdown되며, 모든 task들은 kill된다. 그래서 production scheduler에는 높은 failover timeout 값(e.g. 4weeks)을
+사용하길 권장한다.  
+ 
+NOTE: failover timeout 전에 framework을 강제로 shutdown하려면 `TEARDOWN` call(scheduler API)을 보내거나 
+master의 `/teardown` endpoint(Operator API)를 사용하는 방법이 있다. 
+
+scheduler가 subscription connection(`/scheduler`)이 끊기거나 master가 변경된 걸(e.g. zookeepr를 통해서) 알게 되면, 
+다시 구독(resubscribe)해야 한다(backoff strategy를 이용). 즉, frameworkID를 설정해서 `SUBSCRIBE` 요청을 보내서 
+(새로운 master일 수도 있다)master와의 새로운 persistent connection을 만든다. 이때 `SUBSCRIBED` 이벤트를 받기 전까지는 
+다른 non-subscribe HTTP 요청을 보내서는 안된다(403 Forbidden 응답을 받게 된다).
+
+master는 subscription connection이 끊긴걸 인지하지 못했으나 scheduler만 connection 끊긴 걸 인지했을 때는, 
+scheduler는 `SUBSCRIBE` 요청으로 새로운 persistent connection을 만들게 된다. 이 때, master는 기존 subscription connection을 닫고, 
+새로운 connect을 사용하게 된다. 하나의 frameworkID에 대해서 오직 하나의 subscription connection만 사용된다는 걸 명심하라. 
+
+master는 각각의 scheduler instance들을 구별하기 위해서 `Mesoso-Stream-Id` 헤더를 사용한다. 다수의 인스턴스를 사용하는 
+고가용(highly available) scheduler의 경우 특정 실패 시나리오에서 의도치 않은 동작을 막기 위해서 이를 이용할 수 있다. 
+각각의 고유의 `Mesos-Stream-Id`는 하나의 subscription connection이 유지되는 동안에만 유효하다. 각각의 `SUBSCRIBE` 요청에 대한 응답은 
+`Mesos-Stream-Id` 헤더를 가지고 있고, 이 ID는 그 이후 non-subscribe call의 헤더에 포함되어야 한다. 
+새로운 subscription connection이 만들어질 때마다, 새로운 stream ID가 생성되고 connection이 유지되는 동안에만 사용될 수 있다. 
+(역주: subscription connection의 life-cycle 내에서만 stream id가 사용되니까 scheduler 쪽에서 상태유지할게 없어서 HA에 유리하다는 얘기인듯)
+
+
+### Network partitions
+
+(역주: *network partitions*는 각 노드는 정상인데 네트웍의 문제로 연결이 끊어진 상황을 의미)
+
+Network partition의 경우에, master와 scheduler간의 subscription connection은 반드시 끊어지는 것은 아니다. 
+이 시나리오를 감지할수 있도록 주기적으로(예: 15초) master가 HEARTBEAT 이벤트를 전송한다(Twitter의 스트리밍 API와 유사).  
+scheduler가 특정 time window 내에서 이러한 heartbeat의 묶음 (예 : 5)을 받지 못하면 즉시 연결을 끊고 다시 구독(subscription)을 시도해야 한다. 
+재 연결하는 동안 master를 대응하기 힘들 정도로 부하를 주지 않으려면 scheduler는 exponential backoff strategy(예 : 최대 15 초)을 사용하는 것이 좋다. 
+scheduler는 모든 HTTP 요청에 대한 응답을 수신하기 위해 비슷한 시간 초과 (예 : 75 초)를 사용할 수 있다. 
+
+
+## Master detection
+
+mesos는 다수의 mesos master를 사용하는 HA(high-availability) mode를 가지고 있다. 
+하나의 active master(leader 혹은 leading master)와 여러 standbys가 있을 때 실패 상황이 되면, master들은 leader를 선출한다(by zookeeper).
+이부분에 대한 상세한 내용은 [문서](http://mesos.apache.org/documentation/latest/high-availability/)를 참고하라. 
+
+scheduler는 leading master에 HTTP 요청을 보내야 하는데, leader가 아닌 master가 요청을 받으면 "HTTP 307 Temporary Redirect" 응답을 하는데 
+`Location` 헤더에 leading header 정보를 보내준다. 아래의 예를 보자. 
+
+
+```
+Scheduler -> Master
+POST /api/v1/scheduler  HTTP/1.1
+
+Host: masterhost1:5050
+Content-Type: application/json
+Accept: application/json
+Connection: keep-alive
+
+{
+  "framework_info"  : {
+    "user" :  "foo",
+    "name" :  "Example HTTP Framework"
+  },
+  "type"            : "SUBSCRIBE"
+}
+
+Master -> Scheduler
+HTTP/1.1 307 Temporary Redirect
+Location: masterhost2:5050
+
+
+Scheduler -> Master
+POST /api/v1/scheduler  HTTP/1.1
+
+Host: masterhost2:5050
+Content-Type: application/json
+Accept: application/json
+Connection: keep-alive
+
+{
+  "framework_info"  : {
+    "user" :  "foo",
+    "name" :  "Example HTTP Framework"
+  },
+  "type"            : "SUBSCRIBE"
+}
+```
+ 
 
 [Scheduler HTTP API](http://mesos.apache.org/documentation/latest/scheduler-http-api/)
 [scheduler.proto](https://github.com/apache/mesos/blob/master/include/mesos/v1/scheduler/scheduler.proto)
