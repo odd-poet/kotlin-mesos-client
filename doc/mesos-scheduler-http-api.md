@@ -837,10 +837,10 @@ Connection: keep-alive
 ```
  
 
-[Scheduler HTTP API](http://mesos.apache.org/documentation/latest/scheduler-http-api/)
-[scheduler.proto](https://github.com/apache/mesos/blob/master/include/mesos/v1/scheduler/scheduler.proto)
-[mesos.proto](https://github.com/apache/mesos/blob/master/include/mesos/v1/mesos.proto)
-[RecordIO format](http://mesos.apache.org/documentation/latest/recordio/)
-[resource provider](http://mesos.apache.org/documentation/latest/csi/#resource-providers)
-[MESOS-8194](https://issues.apache.org/jira/browse/MESOS-8371)
-[Using Resource Roles](https://mesos.apache.org/documentation/latest/roles/)
+[Scheduler HTTP API]:http://mesos.apache.org/documentation/latest/scheduler-http-api/
+[scheduler.proto]:https://github.com/apache/mesos/blob/master/include/mesos/v1/scheduler/scheduler.proto
+[mesos.proto]:https://github.com/apache/mesos/blob/master/include/mesos/v1/mesos.proto
+[RecordIO format]:http://mesos.apache.org/documentation/latest/recordio/
+[resource provider]:http://mesos.apache.org/documentation/latest/csi/#resource-providers
+[MESOS-8194]:https://issues.apache.org/jira/browse/MESOS-8371
+[Using Resource Roles]:https://mesos.apache.org/documentation/latest/roles/
